@@ -181,8 +181,17 @@ impl ClaudeImporter {
         )?;
 
         let handle = self.inner.doc_host.open(&chat_id)?;
+        // Deleting a chat tombstones its row but keeps the doc, so a re-import
+        // opens a doc that may already hold these entries. Entry ids are
+        // deterministic, which makes skipping them enough to avoid doubling.
+        let existing: std::collections::HashSet<String> = handle
+            .doc()
+            .read_entries()?
+            .into_iter()
+            .map(|entry| entry.id)
+            .collect();
         let mut written = 0usize;
-        for entry in &entries {
+        for entry in entries.iter().filter(|e| !existing.contains(&e.id)) {
             handle.doc().push_message(entry)?;
             written += 1;
         }

@@ -205,3 +205,38 @@ async fn re_importing_the_same_transcript_changes_nothing() {
 
     core.shutdown().await;
 }
+
+/// Deleting a chat tombstones its row but leaves the doc, so re-importing has
+/// to recognize the entries it already wrote rather than doubling them.
+#[tokio::test]
+async fn re_importing_after_deleting_the_chat_does_not_double_the_transcript() {
+    let data = tempfile::tempdir().expect("data dir");
+    let claude = tempfile::tempdir().expect("claude dir");
+    let work = tempfile::tempdir().expect("work dir");
+    write_transcript(claude.path(), &work.path().to_string_lossy());
+
+    let core = assemble(data.path());
+    let importer = importer(&core, claude.path());
+    assert_eq!(summary(&run(&importer, &[])).0, 1);
+
+    assert!(
+        core.workspace.delete_chat(SESSION).expect("delete chat"),
+        "the row is removed"
+    );
+    assert_eq!(
+        summary(&run(&importer, &[])),
+        (1, 0, 0),
+        "the chat comes back, but writes no further messages"
+    );
+
+    let entries = core
+        .doc_host
+        .open(SESSION)
+        .expect("open doc")
+        .doc()
+        .read_entries()
+        .expect("read entries");
+    assert_eq!(entries.len(), 2, "still one copy of the transcript");
+
+    core.shutdown().await;
+}
