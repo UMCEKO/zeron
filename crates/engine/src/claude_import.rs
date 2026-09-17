@@ -192,9 +192,6 @@ impl ClaudeImporter {
         } else {
             self.inner.workspace.rename_chat(&chat_id, &session.title)?;
         }
-        self.inner
-            .workspace
-            .set_chat_activity(&chat_id, read.last_ms, read.started_ms)?;
         if let Some(preview) = entries.iter().rev().find_map(last_text) {
             self.inner.workspace.note_message(&chat_id, &preview);
         }
@@ -205,6 +202,14 @@ impl ClaudeImporter {
         if let Some(branch) = read.git_branch.as_deref() {
             self.inner.workspace.set_chat_branch(&chat_id, branch)?;
         }
+        // Last, because note_message stamps the preview with the wall clock and
+        // would otherwise date an imported chat to the moment it was imported.
+        let last_ms = read
+            .last_ms
+            .or_else(|| entries.last().map(|e| e.created_at));
+        self.inner
+            .workspace
+            .set_chat_activity(&chat_id, last_ms, read.started_ms)?;
         Ok(written)
     }
 }

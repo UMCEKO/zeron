@@ -111,6 +111,25 @@ async fn imports_a_transcript_into_a_resumable_chat() {
     assert_eq!(chat.config.map(|c| c.harness), Some(HarnessId::ClaudeCode));
     assert!(chat.space_id.is_some(), "the chat lands in a project");
 
+    // The transcript's own clock, not the moment of import: the sidebar has to
+    // sort an imported chat by when the work actually happened.
+    assert_eq!(
+        chat.created_at.timestamp_millis(),
+        1_789_590_433_490,
+        "created_at is the first record's timestamp"
+    );
+    assert_eq!(
+        chat.last_message_at.map(|at| at.timestamp_millis()),
+        Some(1_789_590_450_000),
+        "last_message_at is the last record's timestamp, not now"
+    );
+    assert!(
+        chat.last_message_preview
+            .as_deref()
+            .is_some_and(|p| p.contains("All green")),
+        "the preview still comes from the last message"
+    );
+
     let entries = core
         .doc_host
         .open(SESSION)
